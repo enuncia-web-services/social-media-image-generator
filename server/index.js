@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai"; // 👈 FIXED NAME
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -17,19 +17,14 @@ app.use(
 
 app.use(express.json());
 
-// 👇 Read API key from environment (Render env var)
 const apiKey = process.env.GEMINI_API_KEY;
 
 if (!apiKey) {
   console.error("❌ GEMINI_API_KEY is not set in environment variables");
 }
 
-const genAI = new GoogleGenAI({
-  apiKey,       // your Gemini key
-  vertexai: false, // using Gemini Developer API, not Vertex
-});
+const ai = new GoogleGenAI({ apiKey });
 
-// POST /api/generate  — adjust logic as per your app needs
 app.post("/api/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -38,18 +33,36 @@ app.post("/api/generate", async (req, res) => {
       return res.status(400).json({ error: "Missing 'prompt' in request body" });
     }
 
-    const response = await genAI.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash", // or your MODEL_NAME if you prefer
+      contents: {
+        parts: [{ text: prompt }],
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "1:1",
+        },
+      },
     });
 
-    // `response.text` is a function in the new SDK
-    const text = response.text;
+    let base64 = null;
 
-    // Some versions expose it as a method: if needed, use
-    // const text = response.text();
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData?.data) {
+        base64 = part.inlineData.data;
+        break;
+      }
+    }
 
-    res.json({ text });
+    if (!base64) {
+      console.error("No image inlineData returned from Gemini:", response);
+      return res
+        .status(500)
+        .json({ error: "No image generated (possibly filtered by safety checks)." });
+    }
+
+    const imageUrl = `data:image/png;base64,${base64}`;
+    res.json({ imageUrl });
   } catch (err) {
     console.error("Generation error:", err);
     res.status(500).json({ error: "Generation failed" });

@@ -1,14 +1,20 @@
-import { GoogleGenAI } from "@google/genai";
-import { MODEL_NAME, CONTACT_INFO } from "../constants";
+// src/services/geminiService.ts
+import { CONTACT_INFO } from "../constants";
 import { LanguageOption } from "../types";
+
+// 👇 Put your Render backend URL here (no trailing slash)
+const BACKEND_URL = "https://YOUR-BACKEND.onrender.com";
+
+type GenerateResponse = {
+  imageUrl: string;
+};
 
 export const generateSocialImage = async (
   language: LanguageOption,
   style: string
 ): Promise<string> => {
-  // Initialize client using the environment variable
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+  // We keep the same rich prompt you already had, but now
+  // we send it to the backend instead of calling Gemini directly.
   const prompt = `
     Create a professional, visually stunning social media image (1:1 aspect ratio) for a company called "${CONTACT_INFO.brand}".
     
@@ -21,7 +27,7 @@ export const generateSocialImage = async (
        - Website: "${CONTACT_INFO.website}"
 
     DESIGN DIRECTION:
-    - Style: ${style}.
+    - Style: ${style || "Use a modern, social-media-friendly design."}.
     - Cultural/Visual Cues: Incorporate artistic elements representing ${language.region} or the ${language.script} script subtly in the background or as a design motif.
     - Color Palette: Use a palette inspired by ${language.colors.join(", ")}.
     - Layout: Unique, non-repetitive composition. High-end, corporate yet creative.
@@ -30,27 +36,28 @@ export const generateSocialImage = async (
     The output must be a high-resolution image suitable for Instagram or LinkedIn.
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: {
-        parts: [{ text: prompt }],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "1:1"
-        }
-      },
-    });
+  const response = await fetch(`${https://enuncia-social-backend.onrender.com}/api/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt }),
+  });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
-    throw new Error("No image data found in response");
-  } catch (error: any) {
-    console.error("Gemini Generation Error:", error);
-    throw error;
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    console.error("Backend error:", text);
+    throw new Error(
+      text || `Backend error: ${response.status} ${response.statusText}`
+    );
   }
+
+  const data = (await response.json()) as GenerateResponse;
+
+  if (!data.imageUrl) {
+    throw new Error("Backend did not return imageUrl.");
+  }
+
+  // 👇 App expects a data URL string for <img src="...">
+  return data.imageUrl;
 };
