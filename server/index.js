@@ -10,7 +10,7 @@ app.post("/api/generate", async (req, res) => {
 
     // Use an image-capable model
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image", // 👈 key change
+      model: "gemini-2.0-flash", // 👈 key change
       contents: [prompt],
       config: {
         // Newer image models don't always need explicit imageConfig,
