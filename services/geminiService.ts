@@ -3,7 +3,7 @@ import { CONTACT_INFO } from "../constants";
 import { LanguageOption } from "../types";
 
 // 👇 Put your Render backend URL here (no trailing slash)
-const BACKEND_URL = "https://YOUR-BACKEND.onrender.com";
+const BACKEND_URL = "https://enuncia-social-backend.onrender.com";
 
 type GenerateResponse = {
   imageUrl: string;
@@ -13,8 +13,6 @@ export const generateSocialImage = async (
   language: LanguageOption,
   style: string
 ): Promise<string> => {
-  // We keep the same rich prompt you already had, but now
-  // we send it to the backend instead of calling Gemini directly.
   const prompt = `
     Create a professional, visually stunning social media image (1:1 aspect ratio) for a company called "${CONTACT_INFO.brand}".
     
@@ -36,7 +34,8 @@ export const generateSocialImage = async (
     The output must be a high-resolution image suitable for Instagram or LinkedIn.
   `;
 
-  const response = await fetch(`${https://enuncia-social-backend.onrender.com}/api/generate`, {
+  // 👇 USE the constant, do NOT hardcode the URL
+  const response = await fetch(`${BACKEND_URL}/api/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -58,6 +57,5 @@ export const generateSocialImage = async (
     throw new Error("Backend did not return imageUrl.");
   }
 
-  // 👇 App expects a data URL string for <img src="...">
   return data.imageUrl;
 };
