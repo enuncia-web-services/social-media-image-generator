@@ -1,56 +1,3 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
-
-dotenv.config();
-
-const app = express();
-
-app.use(
-  cors({
-    origin: "https://enuncia-web-services.github.io", // GitHub Pages frontend
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
-
-app.use(express.json());
-
-// -------------------------------
-// 🔑 Load API Key from environment
-// -------------------------------
-const apiKey = process.env.GEMINI_API_KEY;
-
-if (!apiKey) {
-  console.error("❌ GEMINI_API_KEY is NOT set in Render environment variables!");
-} else {
-  console.log("✅ GEMINI_API_KEY loaded. Length:", apiKey.length);
-}
-
-// Initialize Gemini client
-const ai = new GoogleGenAI({ apiKey });
-
-// -------------------------------
-// 🌐 Health Check Route
-// -------------------------------
-app.get("/", (req, res) => {
-  res.send("✅ Enuncia backend is running. Use POST /api/generate");
-});
-
-// -------------------------------
-// 🔍 Debug: Check Key Presence
-// -------------------------------
-app.get("/debug-key", (req, res) => {
-  if (!apiKey) {
-    return res.json({ hasKey: false, length: 0 });
-  }
-  res.json({ hasKey: true, length: apiKey.length });
-});
-
-// -------------------------------
-// 🎨 MAIN ROUTE: Generate Image
-// -------------------------------
 app.post("/api/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -59,21 +6,19 @@ app.post("/api/generate", async (req, res) => {
       return res.status(400).json({ error: "Missing 'prompt' in request body" });
     }
 
-    console.log("📝 Received prompt:", prompt.substring(0, 50) + "...");
+    console.log("📝 Received prompt:", prompt.substring(0, 80) + "...");
 
+    // Use an image-capable model
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: {
-        parts: [{ text: prompt }],
-      },
+      model: "gemini-2.5-flash-image", // 👈 key change
+      contents: [prompt],
       config: {
-        imageConfig: {
-          aspectRatio: "1:1",
-        },
+        // Newer image models don't always need explicit imageConfig,
+        // but we can keep it if supported. If this still errors, remove this config block.
+        responseModalities: ["IMAGE"],
       },
     });
 
-    // Extract base64 image from response
     let base64Image = null;
     const parts = result?.candidates?.[0]?.content?.parts || [];
 
@@ -85,7 +30,7 @@ app.post("/api/generate", async (req, res) => {
     }
 
     if (!base64Image) {
-      console.error("❌ No inlineData returned by Gemini");
+      console.error("❌ No inlineData image returned by Gemini:", JSON.stringify(result, null, 2));
       return res.status(500).json({
         error:
           "No image returned from Gemini API. It may have been filtered or the model had an issue.",
@@ -94,20 +39,11 @@ app.post("/api/generate", async (req, res) => {
 
     const imageUrl = `data:image/png;base64,${base64Image}`;
     return res.json({ imageUrl });
-
   } catch (err) {
-    console.error("❌ Generation Error:", err.response?.data || err.message || err);
+    console.error("❌ Generation Error:", err?.response?.data || err.message || err);
     return res.status(500).json({
       error: "Generation failed. Check backend logs.",
-      details: err.message,
+      details: err?.message,
     });
   }
-});
-
-// -------------------------------
-// 🚀 Start Server
-// -------------------------------
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`🚀 Backend running on port ${PORT}`);
 });
