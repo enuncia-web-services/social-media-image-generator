@@ -1,3 +1,5 @@
+const MODEL = "gemini-2.5-flash-image"; // 👈 image-capable model
+
 app.post("/api/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -7,16 +9,12 @@ app.post("/api/generate", async (req, res) => {
     }
 
     console.log("📝 Received prompt:", prompt.substring(0, 80) + "...");
+    console.log("🧠 Using model:", MODEL);
 
-    // Use an image-capable model
+    // No aspect ratio / imageConfig here – let the model decide.
     const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash", // 👈 key change
+      model: MODEL,
       contents: [prompt],
-      config: {
-        // Newer image models don't always need explicit imageConfig,
-        // but we can keep it if supported. If this still errors, remove this config block.
-        responseModalities: ["IMAGE"],
-      },
     });
 
     let base64Image = null;
@@ -30,7 +28,10 @@ app.post("/api/generate", async (req, res) => {
     }
 
     if (!base64Image) {
-      console.error("❌ No inlineData image returned by Gemini:", JSON.stringify(result, null, 2));
+      console.error(
+        "❌ No inlineData image returned by Gemini:",
+        JSON.stringify(result, null, 2)
+      );
       return res.status(500).json({
         error:
           "No image returned from Gemini API. It may have been filtered or the model had an issue.",
